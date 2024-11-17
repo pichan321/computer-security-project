@@ -13,9 +13,14 @@ import (
 	"path/filepath"
 )
 
-const MAX_READ_BUFFER = 2 * 1024 * 1024 // 2 MB
+const (
+	RSA_KEY_SIZE            = 256
+	RSA_PADDING_OVERHEAD    = 42
+	RSA_MAX_ENCRYPTION_SIZE = RSA_KEY_SIZE - RSA_PADDING_OVERHEAD
+)
+const MAX_READ_BUFFER = 32
 
-func signSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
+func SignSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -41,7 +46,7 @@ func signSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
 		if err != nil || n == 0 {
 			break
 		}
-		
+
 		checksum.Write(buf)
 	}
 
@@ -55,7 +60,7 @@ func signSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
 	return signature, nil
 }
 
-func verifySignature(filePath string, signature []byte, publicKeyBytes []byte) ([]byte, error) {
+func VerifySignature(filePath string, signature []byte, publicKeyBytes []byte) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
@@ -81,7 +86,7 @@ func verifySignature(filePath string, signature []byte, publicKeyBytes []byte) (
 		if err != nil || n == 0 {
 			break
 		}
-		
+
 		checksum.Write(buf)
 	}
 
@@ -95,9 +100,7 @@ func verifySignature(filePath string, signature []byte, publicKeyBytes []byte) (
 	return signature, nil
 }
 
-
-
-func encryptFile(filePath string, publicKeyBytes []byte) error {
+func EncryptFile(filePath string, publicKeyBytes []byte) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -109,35 +112,40 @@ func encryptFile(filePath string, publicKeyBytes []byte) error {
 		return errors.New("invalid public key")
 	}
 
-	publicKey, err := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
+	publicKey, err := x509.ParsePKCS1PublicKey(publicKeyBlock.Bytes)
 	if err != nil {
 		return errors.New("error parsing public key")
 	}
 
-	encryptedFile, err := os.Create(fmt.Sprintf(`%s-encrypted.txt`, filepath.Base(filePath)))
+	encryptedFile, err := os.Create(fmt.Sprintf(`%s-encrypted`, filepath.Base(filePath)))
 	if err != nil {
 		return err
 	}
 	defer encryptedFile.Close()
 
-	buf := make([]byte, MAX_READ_BUFFER)
+	buf := make([]byte, RSA_MAX_ENCRYPTION_SIZE)
 
 	for {
 		n, err := file.Read(buf)
-		if err != nil || n == 0 {
+		if n == 0 || err != nil {
 			break
 		}
-		encryptedData, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey.(*rsa.PublicKey), buf)
+
+		encryptedData, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, buf[:n])
+		if err != nil {
+			return err
+		}
+
 		_, err = encryptedFile.Write(encryptedData)
 		if err != nil {
-			break
+			return err
 		}
 	}
 
 	return nil
 }
 
-func decryptFile(filePath string, privateKeyBytes []byte) error {
+func DecryptFile(filePath string, privateKeyBytes []byte) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -146,31 +154,36 @@ func decryptFile(filePath string, privateKeyBytes []byte) error {
 
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
-		return errors.New("invalid public key")
+		return errors.New("invalid private key")
 	}
 
-	privateKey, err := x509.ParsePKCS8PrivateKey(privateKeyBlock.Bytes)
+	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if err != nil {
-		return errors.New("error parsing public key")
+		return errors.New("error parsing private key")
 	}
 
-	encryptedFile, err := os.Create(fmt.Sprintf(`%s-decrypted.txt`, filepath.Base(filePath)))
+	decryptedFile, err := os.Create(fmt.Sprintf(`%s-decrypted`, filepath.Base(filePath)))
 	if err != nil {
 		return err
 	}
-	defer encryptedFile.Close()
+	defer decryptedFile.Close()
 
-	buf := make([]byte, MAX_READ_BUFFER)
+	buf := make([]byte, RSA_KEY_SIZE)
 
 	for {
 		n, err := file.Read(buf)
-		if err != nil || n == 0 {
+		if n == 0 || err != nil {
 			break
 		}
-		decryptedData, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey.(*rsa.PrivateKey), buf)
-		_, err = encryptedFile.Write(decryptedData)
+
+		decryptedData, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, buf[:n])
 		if err != nil {
-			break
+			return err
+		}
+
+		_, err = decryptedFile.Write(decryptedData)
+		if err != nil {
+			return err
 		}
 	}
 
