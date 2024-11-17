@@ -4,5 +4,6 @@ import "blockchain-fileshare/utils"
 
 func main() {
 
-	utils.GenerateKeyPair("user1")
+	// utils.GenerateKeyPair("user1")
+	utils.InitIPFS()
 }

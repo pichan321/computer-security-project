@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"fmt"
-	"os"
 	"strings"
 
 	shell "github.com/ipfs/go-ipfs-api"
@@ -10,20 +8,20 @@ import (
 
 const IPFS_ENDPOINT = `https://ipfs.io/ipfs/`
 
-func InitIPFS() {
+func InitIPFS() (*shell.Shell, error) {
 	sh := shell.NewShell("localhost:5001")
-	cid, err := sh.Add(strings.NewReader("hello world!"))
+	_, err := sh.Add(strings.NewReader("hello world!"))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %s", err)
+		return nil, err
 	}
 
-	fmt.Println(cid)
+	return sh, nil
 }
 
-func UploadFileToIPFS() {
+func UploadFileToIPFS(sh *shell.Shell, filePath string) {
 
 }
 
-func DeleteFileFromIPFS() {
-	
+func DeleteFileFromIPFS(sh *shell.Shell, filePath string) {
+
 }
