@@ -1,6 +1,8 @@
-package utils
+package ipfs
 
 import (
+	"blockchain-fileshare/entities"
+	"blockchain-fileshare/utils"
 	"bytes"
 	"errors"
 	"fmt"
@@ -24,8 +26,11 @@ func InitIPFS() (*shell.Shell, error) {
 	return sh, nil
 }
 
-func UploadFileToIPFS(sh *shell.Shell, filePath string, groupPublicKeyBytes []byte) (string, error) {
-	filename, err := EncryptFile(filePath, groupPublicKeyBytes)
+func UploadFileToIPFS(sh *shell.Shell, proxy *entities.IPFSProxy, filePath string, groupPublicKeyBytes []byte) (string, error) {
+
+	
+
+	filename, err := utils.EncryptFile(filePath, groupPublicKeyBytes)
 	if err != nil {
 		return "", err
 	}
@@ -50,7 +55,7 @@ func UploadFileToIPFS(sh *shell.Shell, filePath string, groupPublicKeyBytes []by
 	return hash, nil
 }
 
-func DownloadFileFromIPFS(sh *shell.Shell, handle string) {
+func DownloadFileFromIPFS(sh *shell.Shell, proxy *entities.IPFSProxy, handle string) {
 	sh.Get(handle, "./")
 }
 
