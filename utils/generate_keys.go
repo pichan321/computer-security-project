@@ -6,11 +6,12 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"os"
 )
 
-//Source: https://systemweakness.com/generating-rsa-pem-key-pair-using-go-7fd9f1471b58
-func GenerateKeyPair(prefix string) ([]byte, []byte){
+// Source: https://systemweakness.com/generating-rsa-pem-key-pair-using-go-7fd9f1471b58
+func GenerateKeyPair(prefix string) ([]byte, []byte) {
 	// Generate a new RSA private key with 2048 bits
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -29,7 +30,9 @@ func GenerateKeyPair(prefix string) ([]byte, []byte){
 		os.Exit(1)
 	}
 	pem.Encode(privateKeyFile, privateKeyPEM)
-	privateKeyFile.Close()
+
+	privateKeyBytes, err := io.ReadAll(privateKeyFile)
+	defer privateKeyFile.Close()
 
 	// Extract the public key from the private key
 	publicKey := &privateKey.PublicKey
@@ -45,9 +48,10 @@ func GenerateKeyPair(prefix string) ([]byte, []byte){
 		os.Exit(1)
 	}
 	pem.Encode(publicKeyFile, publicKeyPEM)
-	publicKeyFile.Close()
+	publicKeyBytes, err := io.ReadAll(publicKeyFile)
+	defer publicKeyFile.Close()
 
 	fmt.Println("RSA key pair generated successfully!")
 
-	return nil, nil
+	return publicKeyBytes, privateKeyBytes // (public, private)
 }
