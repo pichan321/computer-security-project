@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -100,26 +102,29 @@ func VerifySignature(filePath string, signature []byte, publicKeyBytes []byte) (
 	return signature, nil
 }
 
-func EncryptFile(filePath string, publicKeyBytes []byte) error {
+func EncryptFile(filePath string, publicKeyBytes []byte) (string, error) {
+	uuid := uuid.New().String()
+
 	file, err := os.Open(filePath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer file.Close()
 
 	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
 	if publicKeyBlock == nil {
-		return errors.New("invalid public key")
+		return "", errors.New("invalid public key")
 	}
 
 	publicKey, err := x509.ParsePKCS1PublicKey(publicKeyBlock.Bytes)
 	if err != nil {
-		return errors.New("error parsing public key")
+		return "", errors.New("error parsing public key")
 	}
 
-	encryptedFile, err := os.Create(fmt.Sprintf(`%s-encrypted`, filepath.Base(filePath)))
+	encryptedFileName := fmt.Sprintf(`%s%s`, uuid, filepath.Ext(filePath))
+	encryptedFile, err := os.Create(encryptedFileName)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer encryptedFile.Close()
 
@@ -133,16 +138,16 @@ func EncryptFile(filePath string, publicKeyBytes []byte) error {
 
 		encryptedData, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, buf[:n])
 		if err != nil {
-			return err
+			return "", err
 		}
 
 		_, err = encryptedFile.Write(encryptedData)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	return nil
+	return encryptedFileName, nil
 }
 
 func DecryptFile(filePath string, privateKeyBytes []byte) error {
