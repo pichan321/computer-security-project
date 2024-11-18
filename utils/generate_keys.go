@@ -10,7 +10,7 @@ import (
 )
 
 //Source: https://systemweakness.com/generating-rsa-pem-key-pair-using-go-7fd9f1471b58
-func GenerateKeyPair(prefix string) {
+func GenerateKeyPair(prefix string) ([]byte, []byte){
 	// Generate a new RSA private key with 2048 bits
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -48,4 +48,6 @@ func GenerateKeyPair(prefix string) {
 	publicKeyFile.Close()
 
 	fmt.Println("RSA key pair generated successfully!")
+
+	return nil, nil
 }

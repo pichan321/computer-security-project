@@ -15,6 +15,7 @@ type Member interface {
 	IsMember() bool
 	IsOwner() bool
 	GetUuid() string
+	GetPublicKey() []byte
 }
 
 type File struct {
@@ -31,14 +32,16 @@ type Group struct {
 type GroupOwner struct {
 	uuid        string
 	groupsOwned []Group
+	publicKey   []byte
 }
 
 type GroupMember struct {
 	uuid             string
 	groupsAssociated []Group
+	publicKey        []byte
 }
 
-func (g GroupOwner) RegisterNewGroup() string {
+func (g GroupOwner) RegisterNewGroup(userUuid string, publicKey []byte) string {
 	groupUuid := uuid.New().String()
 	utils.GenerateKeyPair(groupUuid)
 	return groupUuid
@@ -133,6 +136,10 @@ func (g GroupOwner) GetUuid() string {
 	return g.uuid
 }
 
+func (g GroupOwner) GetPublicKey() []byte {
+	return g.publicKey
+}
+
 func (g GroupMember) ReadFile(groupID string, filename string) {
 
 }
@@ -161,4 +168,8 @@ func (g GroupMember) IsOwner() bool {
 
 func (g GroupMember) GetUuid() string {
 	return g.uuid
+}
+
+func (g GroupMember) GetPublicKey() []byte {
+	return g.publicKey
 }
