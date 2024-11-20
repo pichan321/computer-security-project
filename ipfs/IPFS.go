@@ -28,8 +28,6 @@ func InitIPFS() (*shell.Shell, error) {
 
 func UploadFileToIPFS(sh *shell.Shell, proxy *entities.IPFSProxy, filePath string, groupPublicKeyBytes []byte) (string, error) {
 
-	
-
 	filename, err := utils.EncryptFile(filePath, groupPublicKeyBytes)
 	if err != nil {
 		return "", err
@@ -59,6 +57,6 @@ func DownloadFileFromIPFS(sh *shell.Shell, proxy *entities.IPFSProxy, handle str
 	sh.Get(handle, "./")
 }
 
-func DeleteFileFromIPFS(sh *shell.Shell, fileHandle string) {
+// func DeleteFileFromIPFS(sh *shell.Shell, fileHandle string) {
 
-}
+// }

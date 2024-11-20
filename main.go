@@ -2,6 +2,7 @@ package main
 
 import (
 	"blockchain-fileshare/entities"
+	"fmt"
 )
 
 func main() {
@@ -14,7 +15,7 @@ func main() {
 	// err = utils.DecryptFile("sample.txt-encrypted.txt", b)
 	// fmt.Println(err)
 	proxy := entities.CreateIPFSProxy()
-	// sh, _ := utils.InitIPFS()
+	// sh, _ := ipfs.InitIPFS()
 
 	// handle, err := utils.UploadFileToIPFS(sh, "sample.txt", b)
 
@@ -27,6 +28,7 @@ func main() {
 	groupOwner := entities.CreateAGroupOwner()
 	groupUuid := groupOwner.RegisterNewGroup(proxy)
 
-	member := entities.CreateAGroupMember()
-
+	member1 := entities.CreateAGroupMember()
+	groupOwner.AddNewMemberObj(proxy, groupUuid, member1)
+	fmt.Println(groupUuid)
 }
