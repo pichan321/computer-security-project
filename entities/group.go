@@ -3,6 +3,7 @@ package entities
 import (
 	"blockchain-fileshare/utils"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -61,6 +62,12 @@ type IPFSProxy struct {
 	groups map[string]GroupMetadata
 }
 
+func (proxy IPFSProxy) PrintUsers(groupID string) {
+	for _, m := range proxy.groups[groupID].users {
+		fmt.Println(m.uuid)
+	}
+}
+
 // this function is necessary because private key of each GroupOwner should not be exposed by any means
 func (g GroupOwner) SignSignature(filePath string) ([]byte, error) {
 	signature, err := utils.SignSignature(filePath, g.privateKey)
@@ -85,12 +92,12 @@ func CreateIPFSProxy() *IPFSProxy {
 	}
 }
 
-func (g GroupOwner) RegisterNewGroup(proxy *IPFSProxy) string {
+func (g *GroupOwner) RegisterNewGroup(proxy *IPFSProxy) string {
 	groupUuid := uuid.New().String()[:6]
 	public, private := utils.GenerateKeyPair(groupUuid)
 	group := Group{ //this is stored with the group owner
 		groupID:      groupUuid,
-		groupMembers: []Member{},
+		groupMembers: []Member{g},
 		files:        []File{},
 	}
 
@@ -182,7 +189,10 @@ func (g *GroupOwner) removeMemberInIPFSProxy(proxy *IPFSProxy, groupUuid string,
 }
 
 func (g *GroupOwner) AddNewMemberObj(proxy *IPFSProxy, groupID string, member Member) error {
+	fmt.Println("group to find", groupID)
+	fmt.Println(g.groupsOwned)
 	for _, group := range g.groupsOwned {
+
 		if group.groupID == groupID {
 			group.groupMembers = append(group.groupMembers, member)
 			g.registerNewMemberInIPFSProxy(proxy, groupID, member)
