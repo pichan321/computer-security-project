@@ -1,14 +1,14 @@
 package entities
 
 import (
-	"blockchain-fileshare/utils"
+	keys "blockchain-fileshare/keys"
 
 	"github.com/google/uuid"
 )
 
 func CreateAGroupOwner() GroupOwner {
 	uuid := uuid.New().String()[:6]
-	public, private := utils.GenerateKeyPair(uuid)
+	public, private := keys.GenerateKeyPair(uuid)
 	g := GroupOwner{
 		uuid:        uuid,
 		groupsOwned: []Group{},
@@ -20,7 +20,7 @@ func CreateAGroupOwner() GroupOwner {
 
 func CreateAGroupMember() GroupMember {
 	uuid := uuid.New().String()[:6]
-	public, private := utils.GenerateKeyPair(uuid)
+	public, private := keys.GenerateKeyPair(uuid)
 	g := GroupMember{
 		uuid:             uuid,
 		groupsAssociated: []Group{},

@@ -29,6 +29,14 @@ func main() {
 	groupUuid := groupOwner.RegisterNewGroup(proxy)
 
 	member1 := entities.CreateAGroupMember()
-	groupOwner.AddNewMemberObj(proxy, groupUuid, member1)
-	fmt.Println(groupUuid)
+	// proxy.PrintUsers(groupUuid)
+	proxy.PrintUsers(groupUuid)
+	fmt.Println()
+	err := groupOwner.AddNewMemberObj(proxy, groupUuid, member1)
+	fmt.Println(err)
+	proxy.PrintUsers(groupUuid)
+	fmt.Println()
+	err = groupOwner.RemoveMemberObj(proxy, groupUuid, member1)
+	fmt.Println(err)
+	proxy.PrintUsers(groupUuid)
 }

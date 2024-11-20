@@ -26,7 +26,7 @@ func InitIPFS() (*shell.Shell, error) {
 	return sh, nil
 }
 
-func UploadFileToIPFS(sh *shell.Shell, proxy *entities.IPFSProxy, filePath string, groupPublicKeyBytes []byte) (string, error) {
+func UploadFileToIPFS(sh *shell.Shell, filePath string, groupPublicKeyBytes []byte) (string, error) {
 
 	filename, err := utils.EncryptFile(filePath, groupPublicKeyBytes)
 	if err != nil {

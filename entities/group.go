@@ -1,6 +1,7 @@
 package entities
 
 import (
+	keys "blockchain-fileshare/keys"
 	"blockchain-fileshare/utils"
 	"errors"
 	"fmt"
@@ -9,10 +10,10 @@ import (
 )
 
 type Member interface {
-	ReadFile(groupID string, filename string)
-	DownloadFile(groupID string, filename string)
-	UploadFile(groupID string, filepath string)
-	DeleteFile(groupID string, filename string)
+	ReadFile(proxy *IPFSProxy, groupID string, filename string) error
+	DownloadFile(proxy *IPFSProxy, groupID string, filename string) error
+	UploadFile(proxy *IPFSProxy, groupID string, filepath string) error
+	DeleteFile(proxy *IPFSProxy, groupID string, filename string) error
 	IsMember() bool
 	IsOwner() bool
 	GetUuid() string
@@ -68,6 +69,26 @@ func (proxy IPFSProxy) PrintUsers(groupID string) {
 	}
 }
 
+func (g GroupOwner) IsMemberOf(proxy *IPFSProxy, groupID string) bool {
+	for _, m := range proxy.groups[groupID].users {
+		if m.uuid == g.GetUuid() {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (g GroupMember) IsMemberOf(proxy *IPFSProxy, groupID string) bool {
+	for _, m := range proxy.groups[groupID].users {
+		if m.uuid == g.GetUuid() {
+			return true
+		}
+	}
+
+	return false
+}
+
 // this function is necessary because private key of each GroupOwner should not be exposed by any means
 func (g GroupOwner) SignSignature(filePath string) ([]byte, error) {
 	signature, err := utils.SignSignature(filePath, g.privateKey)
@@ -94,7 +115,14 @@ func CreateIPFSProxy() *IPFSProxy {
 
 func (g *GroupOwner) RegisterNewGroup(proxy *IPFSProxy) string {
 	groupUuid := uuid.New().String()[:6]
-	public, private := utils.GenerateKeyPair(groupUuid)
+	public, private := keys.GenerateKeyPair(groupUuid)
+
+	// newG := GroupOwner{
+	// 	uuid:        g.GetUuid(),
+	// 	groupsOwned: g.groupsOwned,
+	// 	publicKey:   public,
+	// 	privateKey:  private,
+	// }
 	group := Group{ //this is stored with the group owner
 		groupID:      groupUuid,
 		groupMembers: []Member{g},
@@ -204,13 +232,33 @@ func (g *GroupOwner) AddNewMemberObj(proxy *IPFSProxy, groupID string, member Me
 }
 
 func (g *GroupOwner) RemoveMemberObj(proxy *IPFSProxy, groupID string, member Member) error {
-	for _, group := range g.groupsOwned {
+	memberToBeRemoved := GroupMember{}
+	groupsOwned := g.groupsOwned
+	gIndex := -1
+	mIndex := -1
+	fmt.Println("Member id", member.GetUuid())
+	for gIdx, group := range groupsOwned {
 		if group.groupID == groupID {
-			group.groupMembers = append(group.groupMembers, member)
-			g.removeMemberInIPFSProxy(proxy, groupID, member)
-			return nil
+			gIndex = gIdx
+			members := group.groupMembers
+			for idx, m := range members {
+				if m.GetUuid() == member.GetUuid() {
+					mIndex = idx
+					g.removeMemberInIPFSProxy(proxy, groupID, memberToBeRemoved)
+					break
+				}
+			}
+
+			break
 		}
 	}
+
+	if gIndex == -1 || mIndex == -1 {
+		fmt.Println("Group INdex", gIndex, "M index", mIndex)
+		return errors.New("unexpected error while removing member from the group")
+	}
+
+	g.groupsOwned[gIndex].groupMembers = append(g.groupsOwned[gIndex].groupMembers[:mIndex], g.groupsOwned[gIndex].groupMembers[mIndex+1:]...)
 
 	return errors.New("unexpected error while removing member from the group")
 }
@@ -250,20 +298,24 @@ func (g *GroupOwner) RemoveMember(groupID string, memberUuid string, allUsers []
 // UploadFile(groupID string, filepath string)
 // DeleteFile(groupID string, filename string)
 
-func (g GroupOwner) ReadFile(groupID string, filename string) {
+func (g GroupOwner) ReadFile(proxy *IPFSProxy, groupID string, filename string) error {
+	return nil
 
 }
 
-func (g GroupOwner) DownloadFile(groupID string, filename string) {
+func (g GroupOwner) DownloadFile(proxy *IPFSProxy, groupID string, filename string) error {
 
+	return nil
 }
 
-func (g GroupOwner) UploadFile(groupID string, filepath string) {
+func (g GroupOwner) UploadFile(proxy *IPFSProxy, groupID string, filepath string) error {
 
+	return nil
 }
 
-func (g GroupOwner) DeleteFile(groupID string, filename string) {
+func (g GroupOwner) DeleteFile(proxy *IPFSProxy, groupID string, filename string) error {
 
+	return nil
 }
 
 func (g GroupOwner) IsMember() bool {
@@ -283,20 +335,24 @@ func (g GroupOwner) GetPublicKey() []byte {
 	return g.publicKey
 }
 
-func (g GroupMember) ReadFile(groupID string, filename string) {
+func (g GroupMember) ReadFile(proxy *IPFSProxy, groupID string, filename string) error {
 
+	return nil
 }
 
-func (g GroupMember) DownloadFile(groupID string, filename string) {
+func (g GroupMember) DownloadFile(proxy *IPFSProxy, groupID string, filename string) error {
 
+	return nil
 }
 
-func (g GroupMember) UploadFile(groupID string, filepath string) {
+func (g GroupMember) UploadFile(proxy *IPFSProxy, groupID string, filename string) error {
 
+	return nil
 }
 
-func (g GroupMember) DeleteFile(groupID string, filename string) {
+func (g GroupMember) DeleteFile(proxy *IPFSProxy, groupID string, filename string) error {
 
+	return nil
 }
 
 func (g GroupMember) IsMember() bool {
