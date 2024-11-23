@@ -4,6 +4,7 @@ import (
 	keys "blockchain-fileshare/keys"
 
 	"github.com/google/uuid"
+	shell "github.com/ipfs/go-ipfs-api"
 )
 
 func CreateAGroupOwner() GroupOwner {
@@ -28,4 +29,18 @@ func CreateAGroupMember() GroupMember {
 		privateKey:       private,
 	}
 	return g
+}
+
+func CreateBlockChain() *Blockchain { 
+	return &Blockchain{
+		blocks: map[string]Data{},
+	}
+}
+
+func CreateOperator(proxy *IPFSProxy, sh *shell.Shell, blockchain *Blockchain) Operators {
+	return Operators{
+		proxy:      proxy,
+		sh:         sh,
+		blockchain: blockchain,
+	}
 }
