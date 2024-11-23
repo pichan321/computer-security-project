@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -21,6 +22,10 @@ const (
 	RSA_MAX_ENCRYPTION_SIZE = RSA_KEY_SIZE - RSA_PADDING_OVERHEAD
 )
 const MAX_READ_BUFFER = 32
+
+func GenerateCheckSum(filePath string) {
+	
+}
 
 func SignSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
 	file, err := os.Open(filePath)
@@ -102,29 +107,30 @@ func VerifySignature(filePath string, signature []byte, publicKeyBytes []byte) (
 	return signature, nil
 }
 
-func EncryptFile(filePath string, publicKeyBytes []byte) (string, error) {
+func EncryptFile(filePath string, publicKeyBytes []byte) (string, string, error) {
 	uuid := uuid.New().String()
 
+	checksum := md5.New()
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer file.Close()
 
 	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
 	if publicKeyBlock == nil {
-		return "", errors.New("invalid public key")
+		return "", "", errors.New("invalid public key")
 	}
 
 	publicKey, err := x509.ParsePKCS1PublicKey(publicKeyBlock.Bytes)
 	if err != nil {
-		return "", errors.New("error parsing public key")
+		return "", "", errors.New("error parsing public key")
 	}
 
 	encryptedFileName := fmt.Sprintf(`%s%s`, uuid, filepath.Ext(filePath))
 	encryptedFile, err := os.Create(encryptedFileName)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer encryptedFile.Close()
 
@@ -138,16 +144,20 @@ func EncryptFile(filePath string, publicKeyBytes []byte) (string, error) {
 
 		encryptedData, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, buf[:n])
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 
 		_, err = encryptedFile.Write(encryptedData)
+		checksum.Write(buf[:n])
+
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
-	return encryptedFileName, nil
+	checksumHash := string(checksum.Sum(nil))
+
+	return encryptedFileName, checksumHash, nil
 }
 
 func DecryptFile(filePath string, privateKeyBytes []byte) error {

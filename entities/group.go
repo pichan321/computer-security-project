@@ -1,19 +1,28 @@
 package entities
 
 import (
+	"blockchain-fileshare/ipfs"
 	keys "blockchain-fileshare/keys"
 	"blockchain-fileshare/utils"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	shell "github.com/ipfs/go-ipfs-api"
 )
 
+// this struct is to make life easy to deal with Member interface change
+type Operators struct {
+	proxy      *IPFSProxy
+	sh         *shell.Shell
+	blockchain *Blockchain
+}
+
 type Member interface {
-	ReadFile(proxy *IPFSProxy, groupID string, filename string) error
-	DownloadFile(proxy *IPFSProxy, groupID string, filename string) error
-	UploadFile(proxy *IPFSProxy, groupID string, filepath string) error
-	DeleteFile(proxy *IPFSProxy, groupID string, filename string) error
+	ReadFile(operator *Operators, groupID string, filename string) error
+	DownloadFile(operator *Operators, groupID string, filename string) error
+	UploadFile(operator *Operators, groupID string, filepath string) (string, error)
+	DeleteFile(operator *Operators, groupID string, filename string) error
 	IsMember() bool
 	IsOwner() bool
 	GetUuid() string
@@ -83,6 +92,15 @@ func (proxy IPFSProxy) getUserPublicKey(groupID string, uuid string) ([]byte, er
 	return nil, errors.New("user is not a member of the group")
 }
 
+func (proxy IPFSProxy) getGroupPublicKey(groupID string) ([]byte, error) {
+	group, ok := proxy.groups[groupID]
+	if !ok {
+		return nil, errors.New("group does not exist")
+	}
+
+	return group.publicKey, nil
+}
+
 // in real world, filePath would be the actual file instead
 func (proxy IPFSProxy) VerifySignature(signature []byte, uploadReq UploadRequest) error {
 	requestedUserPublicKey, err := proxy.getUserPublicKey(uploadReq.groupID, uploadReq.requestedUserUuid)
@@ -95,6 +113,17 @@ func (proxy IPFSProxy) VerifySignature(signature []byte, uploadReq UploadRequest
 		return err
 	}
 	return nil
+}
+
+func (proxy IPFSProxy) UploadFileToIPFS(sh *shell.Shell, uploadReq UploadRequest) (string, string, error) {
+	groupPublicKey, err := proxy.getGroupPublicKey(uploadReq.groupID)
+	if err != nil {
+		return "", "", err
+	}
+
+	handle, checksum, err := ipfs.UploadFileToIPFS(sh, uploadReq.filePath, groupPublicKey)
+
+	return handle, checksum, nil
 }
 
 func (proxy IPFSProxy) PrintUsers(groupID string) {
@@ -151,15 +180,15 @@ func (g *GroupOwner) RegisterNewGroup(proxy *IPFSProxy) string {
 	groupUuid := uuid.New().String()[:6]
 	public, private := keys.GenerateKeyPair(groupUuid)
 
-	// newG := GroupOwner{
-	// 	uuid:        g.GetUuid(),
-	// 	groupsOwned: g.groupsOwned,
-	// 	publicKey:   public,
-	// 	privateKey:  private,
-	// }
+	newG := GroupOwner{
+		uuid:        g.GetUuid(),
+		groupsOwned: g.groupsOwned,
+		publicKey:   public,
+		privateKey:  private,
+	}
 	group := Group{ //this is stored with the group owner
 		groupID:      groupUuid,
-		groupMembers: []Member{g},
+		groupMembers: []Member{newG},
 		files:        []File{},
 	}
 
@@ -332,40 +361,53 @@ func (g *GroupOwner) RemoveMember(groupID string, memberUuid string, allUsers []
 // UploadFile(groupID string, filepath string)
 // DeleteFile(groupID string, filename string)
 
-func (g GroupOwner) ReadFile(proxy *IPFSProxy, groupID string, filename string) error {
+func (g GroupOwner) ReadFile(operator *Operators, groupID string, filename string) error {
 	return nil
 }
 
-func (g GroupOwner) DownloadFile(proxy *IPFSProxy, groupID string, filename string) error {
+func (g GroupOwner) DownloadFile(operator *Operators, groupID string, filename string) error {
 
 	return nil
 }
 
-func (g GroupOwner) UploadFile(proxy *IPFSProxy, groupID string, filePath string) error {
-	if isMember, err := g.IsMemberOf(proxy, groupID); !isMember {
-		return err
+func (g GroupOwner) UploadFile(operator *Operators, groupID string, filePath string) (string, error) {
+	if isMember, err := g.IsMemberOf(operator.proxy, groupID); !isMember {
+		return "", err
 	}
 
 	signature, err := utils.SignSignature(filePath, g.privateKey)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	uploadReq := UploadRequest{
-		filePath:      filePath,
-		groupID:       groupID,
+		filePath:          filePath,
+		groupID:           groupID,
 		requestedUserUuid: g.GetUuid(),
-		signature:     signature,
-	}
-	err = proxy.VerifySignature(signature, uploadReq)
-	if err != nil {
-		return err
+		signature:         signature,
 	}
 
-	return nil
+	err = operator.proxy.VerifySignature(signature, uploadReq)
+	if err != nil {
+		return "", err
+	}
+
+	//a good implementation should have VerifySignature wrapped inside UploadFileToIPFS
+	handle, checksum, err := operator.proxy.UploadFileToIPFS(operator.sh, uploadReq)
+	if err != nil {
+		return "", err
+	}
+
+	transactionData := Data{
+		groupId:  groupID,
+		fileHash: checksum,
+		IPFSHash: handle,
+	}
+	transactionHash := operator.blockchain.CreateTransaction(transactionData)
+	return transactionHash, nil
 }
 
-func (g GroupOwner) DeleteFile(proxy *IPFSProxy, groupID string, filename string) error {
+func (g GroupOwner) DeleteFile(operator *Operators, groupID string, filename string) error {
 
 	return nil
 }
@@ -387,22 +429,22 @@ func (g GroupOwner) GetPublicKey() []byte {
 	return g.publicKey
 }
 
-func (g GroupMember) ReadFile(proxy *IPFSProxy, groupID string, filename string) error {
+func (g GroupMember) ReadFile(operator *Operators, groupID string, filename string) error {
 
 	return nil
 }
 
-func (g GroupMember) DownloadFile(proxy *IPFSProxy, groupID string, filename string) error {
+func (g GroupMember) DownloadFile(operator *Operators, groupID string, filename string) error {
 
 	return nil
 }
 
-func (g GroupMember) UploadFile(proxy *IPFSProxy, groupID string, filename string) error {
+func (g GroupMember) UploadFile(operator *Operators, groupID string, filename string) (string, error) {
 
-	return nil
+	return "", nil
 }
 
-func (g GroupMember) DeleteFile(proxy *IPFSProxy, groupID string, filename string) error {
+func (g GroupMember) DeleteFile(operator *Operators, groupID string, filename string) error {
 
 	return nil
 }
