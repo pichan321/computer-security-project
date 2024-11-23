@@ -63,30 +63,64 @@ type IPFSProxy struct {
 	groups map[string]GroupMetadata
 }
 
+type UploadRequest struct {
+	filePath          string
+	groupID           string
+	requestedUserUuid string
+	signature         []byte
+}
+
+func (proxy IPFSProxy) getUserPublicKey(groupID string, uuid string) ([]byte, error) {
+	group, ok := proxy.groups[groupID]
+	if !ok {
+		return nil, errors.New("group does not exist")
+	}
+	for _, m := range group.users {
+		if m.uuid == uuid {
+			return m.publicKey, nil
+		}
+	}
+	return nil, errors.New("user is not a member of the group")
+}
+
+// in real world, filePath would be the actual file instead
+func (proxy IPFSProxy) VerifySignature(signature []byte, uploadReq UploadRequest) error {
+	requestedUserPublicKey, err := proxy.getUserPublicKey(uploadReq.groupID, uploadReq.requestedUserUuid)
+	if err != nil {
+		return err
+	}
+
+	_, err = utils.VerifySignature(uploadReq.filePath, signature, requestedUserPublicKey)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (proxy IPFSProxy) PrintUsers(groupID string) {
 	for _, m := range proxy.groups[groupID].users {
 		fmt.Println(m.uuid)
 	}
 }
 
-func (g GroupOwner) IsMemberOf(proxy *IPFSProxy, groupID string) bool {
+func (g GroupOwner) IsMemberOf(proxy *IPFSProxy, groupID string) (bool, error) {
 	for _, m := range proxy.groups[groupID].users {
 		if m.uuid == g.GetUuid() {
-			return true
+			return true, nil
 		}
 	}
 
-	return false
+	return false, errors.New("is not a member")
 }
 
-func (g GroupMember) IsMemberOf(proxy *IPFSProxy, groupID string) bool {
+func (g GroupMember) IsMemberOf(proxy *IPFSProxy, groupID string) (bool, error) {
 	for _, m := range proxy.groups[groupID].users {
 		if m.uuid == g.GetUuid() {
-			return true
+			return true, nil
 		}
 	}
 
-	return false
+	return false, errors.New("is not a member")
 }
 
 // this function is necessary because private key of each GroupOwner should not be exposed by any means
@@ -300,7 +334,6 @@ func (g *GroupOwner) RemoveMember(groupID string, memberUuid string, allUsers []
 
 func (g GroupOwner) ReadFile(proxy *IPFSProxy, groupID string, filename string) error {
 	return nil
-
 }
 
 func (g GroupOwner) DownloadFile(proxy *IPFSProxy, groupID string, filename string) error {
@@ -308,7 +341,26 @@ func (g GroupOwner) DownloadFile(proxy *IPFSProxy, groupID string, filename stri
 	return nil
 }
 
-func (g GroupOwner) UploadFile(proxy *IPFSProxy, groupID string, filepath string) error {
+func (g GroupOwner) UploadFile(proxy *IPFSProxy, groupID string, filePath string) error {
+	if isMember, err := g.IsMemberOf(proxy, groupID); !isMember {
+		return err
+	}
+
+	signature, err := utils.SignSignature(filePath, g.privateKey)
+	if err != nil {
+		return err
+	}
+
+	uploadReq := UploadRequest{
+		filePath:      filePath,
+		groupID:       groupID,
+		requestedUserUuid: g.GetUuid(),
+		signature:     signature,
+	}
+	err = proxy.VerifySignature(signature, uploadReq)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
