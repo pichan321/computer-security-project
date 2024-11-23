@@ -30,8 +30,10 @@ type Member interface {
 }
 
 type File struct {
-	fileOwner []Member
-	handle    string
+	fileOwner Member
+	FileName string //this is probably what the users will ever see on the interface
+	handle    string //this is not actually, necessary for the system to work, but it is required for testing the security later
+	transactionID string
 }
 
 type Group struct {
@@ -60,6 +62,15 @@ type UserMetadata struct { //this is like GroupMember/GroupOwner but since we do
 }
 
 // for the distributed access control policies and group key management (Huang et al.)
+/**
+ I just realized that the paper uses one hash table to store the group keys (public + private) and
+all members' public keys (each user should never have to give out their private keys)
+
+ My approach stores the group's public and private as fields, and all users/members separately in a slice just so that
+I could easy print just the users and debug stuff. It comes with a worse runtime lookup but better and clearer birdeye view
+of what's going on for anyone looking through my code
+**/
+
 type GroupMetadata struct {
 	ownerUuid  string
 	groupUuid  string //this might be redundant but we might need it later
@@ -365,7 +376,11 @@ func (g GroupOwner) ReadFile(operator *Operators, groupID string, filename strin
 	return nil
 }
 
-func (g GroupOwner) DownloadFile(operator *Operators, groupID string, filename string) error {
+/**
+In real world, when a member of the group wants to access a file, they might see it by some abitrary filename.
+When they do click the file to download, only transactionHash is used in the process of retrieval.
+**/
+func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactionHash string) error {
 
 	return nil
 }
@@ -404,6 +419,22 @@ func (g GroupOwner) UploadFile(operator *Operators, groupID string, filePath str
 		IPFSHash: handle,
 	}
 	transactionHash := operator.blockchain.CreateTransaction(transactionData)
+
+	file := File{
+		fileOwner: g,
+		handle:    handle,
+	}
+
+	groupIdx := -1
+	for idx, group := range g.groupsOwned {
+		if group.groupID == groupID {
+			groupIdx = idx
+			break
+		}
+	}
+	if groupIdx == -1 {return "", errors.New("unexpected error while finding group to insert the uploaded file metadata into")}
+
+	g.groupsOwned[groupIdx].files = append(g.groupsOwned[groupIdx].files, file)
 	return transactionHash, nil
 }
 
