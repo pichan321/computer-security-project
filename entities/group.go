@@ -4,8 +4,17 @@ import (
 	"blockchain-fileshare/ipfs"
 	keys "blockchain-fileshare/keys"
 	"blockchain-fileshare/utils"
+	"bytes"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/gob"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	shell "github.com/ipfs/go-ipfs-api"
@@ -30,9 +39,9 @@ type Member interface {
 }
 
 type File struct {
-	fileOwner Member
-	FileName string //this is probably what the users will ever see on the interface
-	handle    string //this is not actually, necessary for the system to work, but it is required for testing the security later
+	fileOwner     Member
+	FileName      string //this is probably what the users will ever see on the interface
+	handle        string //this is not actually, necessary for the system to work, but it is required for testing the security later
 	transactionID string
 }
 
@@ -88,6 +97,96 @@ type UploadRequest struct {
 	groupID           string
 	requestedUserUuid string
 	signature         []byte
+}
+
+type DownloadRequest struct {
+	requestedUserId string
+	groupId         string
+	IPFSHandle      string
+}
+
+func encodeDownloadRequest(downloadRequest DownloadRequest) ([]byte, error) {
+	var downloadReqStructBytesBuffer bytes.Buffer
+	encoder := gob.NewEncoder(&downloadReqStructBytesBuffer)
+	err := encoder.Encode(downloadRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return downloadReqStructBytesBuffer.Bytes(), nil
+}
+
+func SignDownloadRequest(downloadRequest DownloadRequest, privateKeyBytes []byte) ([]byte, error) {
+	downloadRequestBytes, err := encodeDownloadRequest(downloadRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
+	if privateKeyBlock == nil {
+		return nil, errors.New("invalid public key")
+	}
+
+	privateKey, err := x509.ParsePKCS8PrivateKey(privateKeyBlock.Bytes)
+	if err != nil {
+		return nil, errors.New("error parsing public key")
+	}
+
+	checksum := sha256.New()
+	checksum.Write(downloadRequestBytes)
+	hash := checksum.Sum(nil)
+
+	signature, err := rsa.SignPSS(rand.Reader, privateKey.(*rsa.PrivateKey), crypto.SHA256, hash[:], nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return signature, nil
+}
+
+func (proxy IPFSProxy) VerifyDownloadReqSignature(downloadRequest DownloadRequest, signature []byte) ([]byte, error) {
+	requestedUserPublicKey, err := proxy.getUserPublicKey(downloadRequest.groupId, downloadRequest.requestedUserId)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKeyBlock, _ := pem.Decode(requestedUserPublicKey)
+	if publicKeyBlock == nil {
+		return nil, errors.New("invalid public key")
+	}
+
+	publicKey, err := x509.ParsePKCS8PrivateKey(publicKeyBlock.Bytes)
+	if err != nil {
+		return nil, errors.New("error parsing public key")
+	}
+
+	downloadRequestBytes, err := encodeDownloadRequest(downloadRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	checksum := sha256.New()
+	checksum.Write(downloadRequestBytes)
+	hash := checksum.Sum(nil)
+
+	err = rsa.VerifyPSS(publicKey.(*rsa.PublicKey), crypto.SHA256, hash[:], signature, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return signature, nil
+}
+
+func (proxy IPFSProxy) DownloadFileFromIPFS(sh *shell.Shell, downloadRequest DownloadRequest) (error) {
+	err := ipfs.DownloadFileFromIPFS(sh, downloadRequest.IPFSHandle)
+	if err != nil {
+		return err
+	}
+
+	// encryptedFileName := downloadRequest.IPFSHandle
+	return nil
+
+
 }
 
 func (proxy IPFSProxy) getUserPublicKey(groupID string, uuid string) ([]byte, error) {
@@ -376,11 +475,35 @@ func (g GroupOwner) ReadFile(operator *Operators, groupID string, filename strin
 	return nil
 }
 
-/**
+/*
+*
 In real world, when a member of the group wants to access a file, they might see it by some abitrary filename.
-When they do click the file to download, only transactionHash is used in the process of retrieval.
-**/
+When they do click the file they intend to download, only transactionHash is used in the process of retrieval.
+*
+*/
 func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactionHash string) error {
+	data, err := operator.blockchain.GetTransactionByHash(transactionHash)
+	if err != nil {
+		return nil
+	}
+
+	downloadRequest := DownloadRequest{
+		requestedUserId: g.GetUuid(),
+		groupId:         groupID,
+		IPFSHandle:      data.IPFSHash,
+	}
+
+	signature, err := SignDownloadRequest(downloadRequest, g.privateKey)
+	if err != nil {
+		return err
+	}
+
+	_, err = operator.proxy.VerifyDownloadReqSignature(downloadRequest, signature)
+	if err != nil {
+		return err
+	}
+
+	file, groupPrivateKey, err := operator.proxy.DownloadFile(downloadRequest)
 
 	return nil
 }
@@ -414,6 +537,7 @@ func (g GroupOwner) UploadFile(operator *Operators, groupID string, filePath str
 	}
 
 	transactionData := Data{
+		userId:   g.GetUuid(),
 		groupId:  groupID,
 		fileHash: checksum,
 		IPFSHash: handle,
@@ -421,8 +545,10 @@ func (g GroupOwner) UploadFile(operator *Operators, groupID string, filePath str
 	transactionHash := operator.blockchain.CreateTransaction(transactionData)
 
 	file := File{
-		fileOwner: g,
-		handle:    handle,
+		fileOwner:     g,
+		FileName:      filepath.Base(filePath),
+		handle:        handle,
+		transactionID: transactionHash,
 	}
 
 	groupIdx := -1
@@ -432,7 +558,9 @@ func (g GroupOwner) UploadFile(operator *Operators, groupID string, filePath str
 			break
 		}
 	}
-	if groupIdx == -1 {return "", errors.New("unexpected error while finding group to insert the uploaded file metadata into")}
+	if groupIdx == -1 {
+		return "", errors.New("unexpected error while finding group to insert the uploaded file metadata into")
+	}
 
 	g.groupsOwned[groupIdx].files = append(g.groupsOwned[groupIdx].files, file)
 	return transactionHash, nil
