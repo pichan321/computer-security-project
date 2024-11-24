@@ -23,10 +23,6 @@ const (
 )
 const MAX_READ_BUFFER = 32
 
-func GenerateCheckSum(filePath string) {
-	
-}
-
 func SignSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -36,12 +32,12 @@ func SignSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
 
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
-		return nil, errors.New("invalid public key")
+		return nil, errors.New("invalid private key")
 	}
 
-	privateKey, err := x509.ParsePKCS8PrivateKey(privateKeyBlock.Bytes)
+	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if err != nil {
-		return nil, errors.New("error parsing public key")
+		return nil, errors.New("error parsing private key")
 	}
 
 	buf := make([]byte, MAX_READ_BUFFER)
@@ -59,7 +55,7 @@ func SignSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
 
 	hash := checksum.Sum(nil)
 
-	signature, err := rsa.SignPSS(rand.Reader, privateKey.(*rsa.PrivateKey), crypto.SHA256, hash[:], nil)
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +75,7 @@ func VerifySignature(filePath string, signature []byte, publicKeyBytes []byte) (
 		return nil, errors.New("invalid public key")
 	}
 
-	publicKey, err := x509.ParsePKCS8PrivateKey(publicKeyBlock.Bytes)
+	publicKey, err := x509.ParsePKCS1PublicKey(publicKeyBlock.Bytes)
 	if err != nil {
 		return nil, errors.New("error parsing public key")
 	}
@@ -99,7 +95,7 @@ func VerifySignature(filePath string, signature []byte, publicKeyBytes []byte) (
 
 	hash := checksum.Sum(nil)
 
-	err = rsa.VerifyPSS(publicKey.(*rsa.PublicKey), crypto.SHA256, hash[:], signature, nil)
+	err = rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, hash[:], signature)
 	if err != nil {
 		return nil, err
 	}
