@@ -23,15 +23,14 @@ func CreateAGroupMember() GroupMember {
 	uuid := uuid.New().String()[:6]
 	public, private := keys.GenerateKeyPair(uuid)
 	g := GroupMember{
-		uuid:             uuid,
-		groupsAssociated: []Group{},
-		publicKey:        public,
-		privateKey:       private,
+		uuid:       uuid,
+		publicKey:  public,
+		privateKey: private,
 	}
 	return g
 }
 
-func CreateBlockChain() *Blockchain { 
+func CreateBlockChain() *Blockchain {
 	return &Blockchain{
 		blocks: map[string]Data{},
 	}

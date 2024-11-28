@@ -11,6 +11,7 @@ type Data struct {
 	groupId  string
 	fileHash string
 	IPFSHash string
+	fileExtension string
 }
 
 type Blockchain struct {

@@ -51,8 +51,8 @@ func UploadFileToIPFS(sh *shell.Shell, filePath string, publicKeyBytes []byte) (
 	return hash, checksum, nil
 }
 
-func DownloadFileFromIPFS(sh *shell.Shell, handle string) error {
-	err := sh.Get(handle, "./")
+func DownloadFileFromIPFS(sh *shell.Shell, handle string, fileExtension string) error {
+	err := sh.Get(handle, fmt.Sprintf(`%s%s`, handle, fileExtension))
 	return err
 }
 
