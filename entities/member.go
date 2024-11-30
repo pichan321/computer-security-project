@@ -114,10 +114,10 @@ func (g GroupMember) ReadFile(operator *Operators, groupID string, handle string
 	return nil
 }
 
-func (g GroupMember) DownloadFile(operator *Operators, groupID string, transactionHash string) (string, error) {
+func (g GroupMember) DownloadFile(operator *Operators, groupID string, transactionHash string) (string, string, error) {
 	data, err := operator.blockchain.GetTransactionByHash(transactionHash)
 	if err != nil {
-		return "", nil
+		return "", "", nil
 	}
 
 	downloadRequest := DownloadRequest{
@@ -128,25 +128,25 @@ func (g GroupMember) DownloadFile(operator *Operators, groupID string, transacti
 
 	signature, err := SignDownloadRequest(downloadRequest, g.privateKey)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	_, err = operator.proxy.VerifyDownloadReqSignature(downloadRequest, signature)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	file, groupPrivateKey, err := operator.proxy.DownloadFileFromIPFS(operator.sh, downloadRequest)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	decryptedFilePath, err := utils.DecryptFile(file, groupPrivateKey)
+	decryptedFilePath, checksumHash, err := utils.DecryptFile(file, groupPrivateKey)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return decryptedFilePath, nil
+	return decryptedFilePath, checksumHash, nil
 }
 
 func (g GroupMember) DeleteFile(operator *Operators, groupID string, handle string) error {

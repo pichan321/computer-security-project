@@ -140,7 +140,7 @@ func (proxy *IPFSProxy) ChangeKeyAndSecureFiles(operator *Operators, groupOwner 
 	oldFiles := groupMetadata.files
 	newFilePaths := []string{}
 	for _, file := range groupMetadata.files {
-		decryptedFilePath, err := groupOwner.DownloadFile(operator, groupID, file.transactionID)
+		decryptedFilePath, _, err := groupOwner.DownloadFile(operator, groupID, file.transactionID) //verifying checksum is optional, we already know that all the files (are not tampered)/(have not been tampered)
 		if err != nil {
 			continue
 		}

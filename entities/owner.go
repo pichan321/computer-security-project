@@ -166,9 +166,9 @@ func (g *GroupOwner) RemoveMemberObj(operator *Operators, groupID string, member
 			members := group.groupMembers
 			fmt.Println("memers", members)
 			for idx, m := range members {
-				
+
 				if m.GetUuid() == member.GetUuid() {
-					
+
 					mIndex = idx
 					break
 				}
@@ -201,9 +201,9 @@ func (g *GroupOwner) RemoveMemberObjAndSecureFiles(operator *Operators, groupID 
 			members := group.groupMembers
 			fmt.Println("memers", members)
 			for idx, m := range members {
-				
+
 				if m.GetUuid() == member.GetUuid() {
-					
+
 					mIndex = idx
 					break
 				}
@@ -262,13 +262,13 @@ func (g GroupOwner) ReadFile(operator *Operators, groupID string, filename strin
 /*
 *
 In real world, when a member of the group wants to access a file, they might see it by some abitrary filename.
-When they do click the file they intend to download, only transactionHash is used in the process of retrieval.
+When they do click the file they intend to download, only transactionHash is used in the process of file retrieval.
 *
 */
-func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactionHash string) (string, error) {
+func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactionHash string) (string, string, error) {
 	data, err := operator.blockchain.GetTransactionByHash(transactionHash)
 	if err != nil {
-		return "", nil
+		return "", "", nil
 	}
 
 	downloadRequest := DownloadRequest{
@@ -279,25 +279,25 @@ func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactio
 
 	signature, err := SignDownloadRequest(downloadRequest, g.privateKey)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	_, err = operator.proxy.VerifyDownloadReqSignature(downloadRequest, signature)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	file, groupPrivateKey, err := operator.proxy.DownloadFileFromIPFS(operator.sh, downloadRequest)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	decryptedFilePath, err := utils.DecryptFile(file, groupPrivateKey)
+	decryptedFilePath, checksumHash, err := utils.DecryptFile(file, groupPrivateKey)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return decryptedFilePath, nil
+	return decryptedFilePath, checksumHash, nil
 }
 
 func (g *GroupOwner) UploadFile(operator *Operators, groupID string, filePath string) (string, error) {

@@ -169,7 +169,7 @@ func EncryptFile(filePath string, publicKeyBytes []byte) (string, string, error)
 	defer encryptedFile.Close()
 
 	buf := make([]byte, RSA_MAX_ENCRYPTION_SIZE)
-
+	
 	for {
 		n, err := file.Read(buf)
 		if n == 0 || err != nil {
@@ -194,32 +194,33 @@ func EncryptFile(filePath string, publicKeyBytes []byte) (string, string, error)
 	return encryptedFileName, checksumHash, nil
 }
 
-func DecryptFile(filePath string, privateKeyBytes []byte) (string, error) {
+func DecryptFile(filePath string, privateKeyBytes []byte) (string, string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer file.Close()
 
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
-		return "", errors.New("invalid private key")
+		return "", "", errors.New("invalid private key")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if err != nil {
-		return "", errors.New("error parsing private key")
+		return "", "", errors.New("error parsing private key")
 	}
-
+ 
 	decryptedFilePath := fmt.Sprintf(`%s-decrypted`, filepath.Base(filePath))
 	decryptedFile, err := os.Create(decryptedFilePath)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer decryptedFile.Close()
 
 	buf := make([]byte, RSA_KEY_SIZE)
 
+	checksum := md5.New()
 	for {
 		n, err := file.Read(buf)
 		if n == 0 || err != nil {
@@ -227,15 +228,17 @@ func DecryptFile(filePath string, privateKeyBytes []byte) (string, error) {
 		}
 
 		decryptedData, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, buf[:n])
+		checksum.Write(buf[:n])
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 
 		_, err = decryptedFile.Write(decryptedData)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 	}
 
-	return decryptedFilePath, nil
+	checksumHash := string(checksum.Sum(nil))
+	return decryptedFilePath, checksumHash, nil
 }
