@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -32,12 +33,12 @@ func SignSignature(filePath string, privateKeyBytes []byte) ([]byte, error) {
 
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
-		return nil, errors.New("invalid private key")
+		return nil, errors.New("Sign Signature | invalid private key")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if err != nil {
-		return nil, errors.New("error parsing private key")
+		return nil, errors.New("Sign Signature | error parsing private key")
 	}
 
 	buf := make([]byte, MAX_READ_BUFFER)
@@ -72,12 +73,12 @@ func VerifySignature(filePath string, signature []byte, publicKeyBytes []byte) (
 
 	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
 	if publicKeyBlock == nil {
-		return nil, errors.New("invalid public key")
+		return nil, errors.New("Verify Signature | invalid public key")
 	}
 
 	publicKey, err := x509.ParsePKCS1PublicKey(publicKeyBlock.Bytes)
 	if err != nil {
-		return nil, errors.New("error parsing public key")
+		return nil, errors.New("Verify Signature | error parsing public key")
 	}
 
 	buf := make([]byte, MAX_READ_BUFFER)
@@ -106,39 +107,67 @@ func VerifySignature(filePath string, signature []byte, publicKeyBytes []byte) (
 func EncryptKey(keyToBeEncryptedBytes []byte, publicKeyBytes []byte) ([]byte, error) {
 	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
 	if publicKeyBlock == nil {
-		return nil, errors.New("invalid public key")
+		return nil, errors.New("Encrypt Key | invalid public key")
 	}
 
 	publicKey, err := x509.ParsePKCS1PublicKey(publicKeyBlock.Bytes)
 	if err != nil {
-		return nil, errors.New("error parsing public key")
+		return nil, errors.New("Encrypt Key | error parsing public key")
 	}
 
-	encryptedKey, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, keyToBeEncryptedBytes)
-	if err != nil {
-		return nil, errors.New("unexpected error encrypting key")
+	// Determine chunk size
+	chunkSize := publicKey.Size() - 11 // PKCS#1 v1.5 padding overhead
+	encryptedData := []byte{}
+
+	// Encrypt in chunks
+	for i := 0; i < len(keyToBeEncryptedBytes); i += chunkSize {
+		end := i + chunkSize
+		if end > len(keyToBeEncryptedBytes) {
+			end = len(keyToBeEncryptedBytes)
+		}
+
+		encryptedChunk, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, keyToBeEncryptedBytes[i:end])
+		if err != nil {
+			return nil, fmt.Errorf("Encrypt Key | encryption failed: %w", err)
+		}
+
+		encryptedData = append(encryptedData, encryptedChunk...)
 	}
 
-	return encryptedKey, nil
+	return encryptedData, nil
 }
 
 func DecryptKey(encryptedKeyToBeDecryptedBytes []byte, privateKeyBytes []byte) ([]byte, error) {
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
-		return nil, errors.New("invalid private key")
+		return nil, errors.New("Decrypt Key | invalid private key")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if err != nil {
-		return nil, errors.New("error parsing private key")
+		return nil, errors.New("Decrypt Key | error parsing private key")
 	}
 
-	decryptedKey, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, encryptedKeyToBeDecryptedBytes)
-	if err != nil {
-		return nil, err
+	// Determine chunk size
+	chunkSize := privateKey.Size()
+	decryptedData := []byte{}
+
+	// Decrypt in chunks
+	for i := 0; i < len(encryptedKeyToBeDecryptedBytes); i += chunkSize {
+		end := i + chunkSize
+		if end > len(encryptedKeyToBeDecryptedBytes) {
+			end = len(encryptedKeyToBeDecryptedBytes)
+		}
+
+		decryptedChunk, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, encryptedKeyToBeDecryptedBytes[i:end])
+		if err != nil {
+			return nil, fmt.Errorf("Decrypt Key | decryption failed: %w", err)
+		}
+
+		decryptedData = append(decryptedData, decryptedChunk...)
 	}
 
-	return decryptedKey, nil
+	return decryptedData, nil
 }
 
 func EncryptFile(filePath string, publicKeyBytes []byte) (string, string, error) {
@@ -153,12 +182,12 @@ func EncryptFile(filePath string, publicKeyBytes []byte) (string, string, error)
 
 	publicKeyBlock, _ := pem.Decode(publicKeyBytes)
 	if publicKeyBlock == nil {
-		return "", "", errors.New("invalid public key")
+		return "", "", errors.New("Encrypt Key | invalid public key")
 	}
 
 	publicKey, err := x509.ParsePKCS1PublicKey(publicKeyBlock.Bytes)
 	if err != nil {
-		return "", "", errors.New("error parsing public key")
+		return "", "", errors.New("Encrypt Key | error parsing public key")
 	}
 
 	encryptedFileName := fmt.Sprintf(`%s%s`, uuid, filepath.Ext(filePath))
@@ -169,7 +198,7 @@ func EncryptFile(filePath string, publicKeyBytes []byte) (string, string, error)
 	defer encryptedFile.Close()
 
 	buf := make([]byte, RSA_MAX_ENCRYPTION_SIZE)
-	
+
 	for {
 		n, err := file.Read(buf)
 		if n == 0 || err != nil {
@@ -203,14 +232,14 @@ func DecryptFile(filePath string, privateKeyBytes []byte) (string, string, error
 
 	privateKeyBlock, _ := pem.Decode(privateKeyBytes)
 	if privateKeyBlock == nil {
-		return "", "", errors.New("invalid private key")
+		return "", "", errors.New("Decrypt Key | invalid private key")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyBlock.Bytes)
 	if err != nil {
-		return "", "", errors.New("error parsing private key")
+		return "", "", errors.New("Decrypt Key | error parsing private key")
 	}
- 
+
 	decryptedFilePath := fmt.Sprintf(`%s-decrypted`, filepath.Base(filePath))
 	decryptedFile, err := os.Create(decryptedFilePath)
 	if err != nil {
@@ -241,4 +270,18 @@ func DecryptFile(filePath string, privateKeyBytes []byte) (string, string, error
 
 	checksumHash := string(checksum.Sum(nil))
 	return decryptedFilePath, checksumHash, nil
+}
+
+func LoadRawBytesFromFile(filePath string) ([]byte, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	defer file.Close()
+	content, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	return content, nil
 }

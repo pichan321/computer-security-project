@@ -275,6 +275,7 @@ func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactio
 		requestedUserId: g.GetUuid(),
 		groupId:         groupID,
 		IPFSHandle:      data.IPFSHash,
+		requestedUserPublicKey: g.GetPublicKey(),
 	}
 
 	signature, err := SignDownloadRequest(downloadRequest, g.privateKey)

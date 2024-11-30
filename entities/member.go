@@ -115,13 +115,14 @@ func (g GroupMember) ReadFile(operator *Operators, groupID string, handle string
 func (g GroupMember) DownloadFile(operator *Operators, groupID string, transactionHash string) (string, string, error) {
 	data, err := operator.blockchain.GetTransactionByHash(transactionHash)
 	if err != nil {
-		return "", "", nil
+		return "", "", err
 	}
 
 	downloadRequest := DownloadRequest{
-		requestedUserId: g.GetUuid(),
-		groupId:         groupID,
-		IPFSHandle:      data.IPFSHash,
+		requestedUserId:        g.GetUuid(),
+		groupId:                groupID,
+		IPFSHandle:             data.IPFSHash,
+		requestedUserPublicKey: g.GetPublicKey(),
 	}
 
 	signature, err := SignDownloadRequest(downloadRequest, g.privateKey)
@@ -143,6 +144,7 @@ func (g GroupMember) DownloadFile(operator *Operators, groupID string, transacti
 	if err != nil {
 		return "", "", err
 	}
+
 	decryptedFilePath, checksumHash, err := utils.DecryptFile(file, decryptedGroupPrivateKey)
 	if err != nil {
 		return "", "", err

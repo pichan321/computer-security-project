@@ -25,6 +25,9 @@ func (b *Blockchain) CreateTransaction(data Data) string {
 }
 
 func (b Blockchain) GetTransactionByHash(transactionId string) (Data, error) {
+	if transactionId == "" {
+		return Data{}, errors.New("transaction ID should not be an empty string")
+	}
 	data, ok := b.blocks[transactionId]
 	if !ok {
 		return Data{}, errors.New("could not locate transaction")

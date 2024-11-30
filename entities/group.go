@@ -231,6 +231,7 @@ func (proxy IPFSProxy) DownloadFileFromIPFS(sh *shell.Shell, downloadRequest Dow
 	if err != nil {
 		return "", nil, err
 	}
+
 	return encryptedFileName, encryptedGroupPrivateKey, nil
 
 }
