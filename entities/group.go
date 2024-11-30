@@ -2,6 +2,7 @@ package entities
 
 import (
 	"blockchain-fileshare/ipfs"
+	keys "blockchain-fileshare/keys"
 	"blockchain-fileshare/utils"
 	"bytes"
 	"crypto"
@@ -13,6 +14,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"strings"
 
 	shell "github.com/ipfs/go-ipfs-api"
 )
@@ -123,6 +125,51 @@ func SignDownloadRequest(downloadRequest DownloadRequest, privateKeyBytes []byte
 	}
 
 	return signature, nil
+}
+
+//return slice of old files for testing our threat model
+func (proxy *IPFSProxy) ChangeKeyAndSecureFiles(operator *Operators, groupOwner *GroupOwner, groupIdx int, groupID string) ([]File, error) {
+	group, exists := proxy.groups[groupID]
+	if !exists {
+		return nil, errors.New("group does not exist")
+	}
+
+	public, private := keys.GenerateKeyPair(group.groupUuid)
+
+	groupMetadata := groupOwner.groupsOwned[groupIdx]
+	oldFiles := groupMetadata.files
+	newFilePaths := []string{}
+	for _, file := range groupMetadata.files {
+		decryptedFilePath, err := groupOwner.DownloadFile(operator, groupID, file.transactionID)
+		if err != nil {
+			continue
+		}
+		newFilePaths = append(newFilePaths, decryptedFilePath)
+		err = ipfs.DeleteFileFromIPFS(operator.sh, file.handle)
+		if err != nil {
+			continue
+		}
+	}
+
+	group.publicKey = public
+	group.privateKey = private
+	proxy.groups[groupID] = group
+
+	groupOwner.groupsOwned[groupIdx].files = []File{}
+
+	for _, newFilePath := range newFilePaths {
+		newFilePath, _ = strings.CutSuffix(newFilePath, "-decrypted")
+		transactionID, err := groupOwner.UploadFile(operator, groupID, newFilePath)
+		if err != nil {
+			continue
+		}
+		fmt.Println("NEW TRANS", transactionID)
+
+	}
+
+	fmt.Println(groupOwner.groupsOwned[groupIdx].files)
+
+	return oldFiles, nil
 }
 
 func (proxy IPFSProxy) getGroupPrivateKey(groupID string) ([]byte, error) {

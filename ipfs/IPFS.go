@@ -56,6 +56,6 @@ func DownloadFileFromIPFS(sh *shell.Shell, handle string, fileExtension string) 
 	return err
 }
 
-// func DeleteFileFromIPFS(sh *shell.Shell, fileHandle string) {
-
-// }
+func DeleteFileFromIPFS(sh *shell.Shell, handle string) error {
+	return sh.Unpin(handle)
+}

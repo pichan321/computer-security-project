@@ -107,6 +107,15 @@ func (g *GroupOwner) registerNewMemberInIPFSProxy(proxy *IPFSProxy, groupUuid st
 	return nil
 }
 
+func (g GroupOwner) ListFiles(groupID string) ([]File, error) {
+	for _, group := range g.groupsOwned {
+		if group.groupID == groupID {
+			return group.files, nil
+		}
+	}
+	return nil, errors.New("unable to locate files")
+}
+
 func (g *GroupOwner) removeMemberInIPFSProxy(proxy *IPFSProxy, groupUuid string, member Member) error {
 	groupMetadata, exists := proxy.groups[groupUuid]
 	if !exists {
@@ -132,10 +141,11 @@ func (g *GroupOwner) removeMemberInIPFSProxy(proxy *IPFSProxy, groupUuid string,
 func (g *GroupOwner) AddNewMemberObj(proxy *IPFSProxy, groupID string, member Member) error {
 	fmt.Println("group to find", groupID)
 	fmt.Println(g.groupsOwned)
-	for _, group := range g.groupsOwned {
+	for idx, group := range g.groupsOwned {
 
 		if group.groupID == groupID {
 			group.groupMembers = append(group.groupMembers, member)
+			g.groupsOwned[idx].groupMembers = group.groupMembers
 			g.registerNewMemberInIPFSProxy(proxy, groupID, member)
 			return nil
 		}
@@ -144,7 +154,7 @@ func (g *GroupOwner) AddNewMemberObj(proxy *IPFSProxy, groupID string, member Me
 	return errors.New("unexpected error while adding new member to the group")
 }
 
-func (g *GroupOwner) RemoveMemberObj(proxy *IPFSProxy, groupID string, member Member) error {
+func (g *GroupOwner) RemoveMemberObj(operator *Operators, groupID string, member Member) error {
 	memberToBeRemoved := GroupMember{}
 	groupsOwned := g.groupsOwned
 	gIndex := -1
@@ -154,10 +164,12 @@ func (g *GroupOwner) RemoveMemberObj(proxy *IPFSProxy, groupID string, member Me
 		if group.groupID == groupID {
 			gIndex = gIdx
 			members := group.groupMembers
+			fmt.Println("memers", members)
 			for idx, m := range members {
+				
 				if m.GetUuid() == member.GetUuid() {
+					
 					mIndex = idx
-					g.removeMemberInIPFSProxy(proxy, groupID, memberToBeRemoved)
 					break
 				}
 			}
@@ -166,15 +178,51 @@ func (g *GroupOwner) RemoveMemberObj(proxy *IPFSProxy, groupID string, member Me
 		}
 	}
 
+	fmt.Println("group index", gIndex, "m index", mIndex)
 	if gIndex == -1 || mIndex == -1 {
 		fmt.Println("Group INdex", gIndex, "M index", mIndex)
 		return errors.New("unexpected error while removing member from the group")
 	}
 
+	g.removeMemberInIPFSProxy(operator.proxy, groupID, memberToBeRemoved)
 	g.groupsOwned[gIndex].groupMembers = append(g.groupsOwned[gIndex].groupMembers[:mIndex], g.groupsOwned[gIndex].groupMembers[mIndex+1:]...)
+	return nil
+}
 
-	// proxy.ChangeKeyAndSecureFiles(groupID)
-	return errors.New("unexpected error while removing member from the group")
+func (g *GroupOwner) RemoveMemberObjAndSecureFiles(operator *Operators, groupID string, member Member) error {
+	memberToBeRemoved := GroupMember{}
+	groupsOwned := g.groupsOwned
+	gIndex := -1
+	mIndex := -1
+	fmt.Println("Member id", member.GetUuid())
+	for gIdx, group := range groupsOwned {
+		if group.groupID == groupID {
+			gIndex = gIdx
+			members := group.groupMembers
+			fmt.Println("memers", members)
+			for idx, m := range members {
+				
+				if m.GetUuid() == member.GetUuid() {
+					
+					mIndex = idx
+					break
+				}
+			}
+
+			break
+		}
+	}
+
+	fmt.Println("group index", gIndex, "m index", mIndex)
+	if gIndex == -1 || mIndex == -1 {
+		fmt.Println("Group INdex", gIndex, "M index", mIndex)
+		return errors.New("unexpected error while removing member from the group")
+	}
+
+	g.removeMemberInIPFSProxy(operator.proxy, groupID, memberToBeRemoved)
+	g.groupsOwned[gIndex].groupMembers = append(g.groupsOwned[gIndex].groupMembers[:mIndex], g.groupsOwned[gIndex].groupMembers[mIndex+1:]...)
+	operator.proxy.ChangeKeyAndSecureFiles(operator, g, gIndex, groupID) //this is the most crucial part for our threat model
+	return nil
 }
 
 func (g *GroupOwner) RemoveMember(groupID string, memberUuid string, allUsers []Member) error {
@@ -217,10 +265,10 @@ In real world, when a member of the group wants to access a file, they might see
 When they do click the file they intend to download, only transactionHash is used in the process of retrieval.
 *
 */
-func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactionHash string) error {
+func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactionHash string) (string, error) {
 	data, err := operator.blockchain.GetTransactionByHash(transactionHash)
 	if err != nil {
-		return nil
+		return "", nil
 	}
 
 	downloadRequest := DownloadRequest{
@@ -231,25 +279,25 @@ func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactio
 
 	signature, err := SignDownloadRequest(downloadRequest, g.privateKey)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	_, err = operator.proxy.VerifyDownloadReqSignature(downloadRequest, signature)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	file, groupPrivateKey, err := operator.proxy.DownloadFileFromIPFS(operator.sh, downloadRequest)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	err = utils.DecryptFile(file, groupPrivateKey)
+	decryptedFilePath, err := utils.DecryptFile(file, groupPrivateKey)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return decryptedFilePath, nil
 }
 
 func (g *GroupOwner) UploadFile(operator *Operators, groupID string, filePath string) (string, error) {
