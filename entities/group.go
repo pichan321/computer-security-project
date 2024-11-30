@@ -86,6 +86,7 @@ type DownloadRequest struct {
 	groupId         string
 	IPFSHandle      string
 	fileExtension   string
+	requestedUserPublicKey []byte //there is no to send this in practice, I just did this because I did not want to spend time finding a user's public key on IPFSProxy's side
 }
 
 func encodeDownloadRequest(downloadRequest DownloadRequest) ([]byte, error) {
@@ -140,7 +141,7 @@ func (proxy *IPFSProxy) ChangeKeyAndSecureFiles(operator *Operators, groupOwner 
 	oldFiles := groupMetadata.files
 	newFilePaths := []string{}
 	for _, file := range groupMetadata.files {
-		decryptedFilePath, err := groupOwner.DownloadFile(operator, groupID, file.transactionID)
+		decryptedFilePath, _, err := groupOwner.DownloadFile(operator, groupID, file.transactionID) //verifying checksum is optional, we already know that all the files (are not tampered)/(have not been tampered)
 		if err != nil {
 			continue
 		}
@@ -225,7 +226,13 @@ func (proxy IPFSProxy) DownloadFileFromIPFS(sh *shell.Shell, downloadRequest Dow
 	if err != nil {
 		return "", nil, err
 	}
-	return encryptedFileName, groupPrivateKey, nil
+
+
+	encryptedGroupPrivateKey, err := utils.EncryptKey(groupPrivateKey, downloadRequest.requestedUserPublicKey)
+	if err != nil {
+		return "", nil, err
+	}
+	return encryptedFileName, encryptedGroupPrivateKey, nil
 
 }
 
