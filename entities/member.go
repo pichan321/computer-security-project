@@ -136,12 +136,17 @@ func (g GroupMember) DownloadFile(operator *Operators, groupID string, transacti
 		return "", "", err
 	}
 
-	file, groupPrivateKey, err := operator.proxy.DownloadFileFromIPFS(operator.sh, downloadRequest)
+	file, encryptedGroupPrivateKey, err := operator.proxy.DownloadFileFromIPFS(operator.sh, downloadRequest)
 	if err != nil {
 		return "", "", err
 	}
 
-	decryptedFilePath, checksumHash, err := utils.DecryptFile(file, groupPrivateKey)
+
+	decryptedGroupPrivateKey, err := utils.DecryptKey(encryptedGroupPrivateKey, g.privateKey)
+	if err != nil {
+		return "", "", err
+	}
+	decryptedFilePath, checksumHash, err := utils.DecryptFile(file, decryptedGroupPrivateKey)
 	if err != nil {
 		return "", "", err
 	}
