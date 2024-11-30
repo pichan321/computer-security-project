@@ -302,15 +302,15 @@ func (g GroupOwner) DownloadFile(operator *Operators, groupID string, transactio
 	return decryptedFilePath, checksumHash, nil
 }
 
-func (g *GroupOwner) UploadFile(operator *Operators, groupID string, filePath string) (string, error) {
+func (g *GroupOwner) UploadFile(operator *Operators, groupID string, filePath string) (string, string, error) {
 	if isMember, err := g.IsMemberOf(operator.proxy, groupID); !isMember {
-		return "", err
+		return "", "", err
 	}
 
 	signature, err := utils.SignSignature(filePath, g.privateKey)
 	if err != nil {
 		fmt.Println("here")
-		return "", err
+		return "", "", err
 	}
 
 	uploadReq := UploadRequest{
@@ -322,13 +322,13 @@ func (g *GroupOwner) UploadFile(operator *Operators, groupID string, filePath st
 
 	err = operator.proxy.VerifySignature(signature, uploadReq)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	//a good implementation should have VerifySignature wrapped inside UploadFileToIPFS
 	handle, checksum, err := operator.proxy.UploadFileToIPFS(operator.sh, uploadReq)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	transactionData := Data{
@@ -356,11 +356,11 @@ func (g *GroupOwner) UploadFile(operator *Operators, groupID string, filePath st
 		}
 	}
 	if groupIdx == -1 {
-		return "", errors.New("unexpected error while finding group to insert the uploaded file metadata into")
+		return "", "", errors.New("unexpected error while finding group to insert the uploaded file metadata into")
 	}
 
 	g.groupsOwned[groupIdx].files = append(g.groupsOwned[groupIdx].files, file)
-	return transactionHash, nil
+	return transactionHash, handle, nil
 }
 
 func (g GroupOwner) DeleteFile(operator *Operators, groupID string, filename string) error {

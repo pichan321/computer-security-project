@@ -2,20 +2,18 @@ package tests
 
 import (
 	"blockchain-fileshare/entities"
-	"blockchain-fileshare/ipfs"
+	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestRevokeAndSecureFiles(t *testing.T) {
 	groupOwner := entities.CreateAGroupOwner()
 
-	blockchain := entities.CreateBlockChain()
-	sh, _ := ipfs.InitIPFS()
+	// blockchain := entities.CreateBlockChain()
+	// sh, _ := ipfs.InitIPFS()
 	proxy := entities.CreateIPFSProxy()
 
-	operator := entities.CreateOperator(proxy, sh, blockchain)
+	// operator := entities.CreateOperator(proxy, sh, blockchain)
 
 	groupOneMembers := []entities.Member{}
 
@@ -28,7 +26,10 @@ func TestRevokeAndSecureFiles(t *testing.T) {
 	groupOneUuid := groupOwner.RegisterNewGroup(proxy)
 
 	emptyFiles, err := groupOwner.ListFiles(groupOneUuid)
-	if err
+	if err != nil {
 
+	}
+
+	fmt.Println(emptyFiles)
 
 }

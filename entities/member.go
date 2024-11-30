@@ -3,7 +3,6 @@ package entities
 import (
 	"blockchain-fileshare/utils"
 	"errors"
-	"fmt"
 	"path/filepath"
 )
 
@@ -48,15 +47,14 @@ func (g GroupMember) SignSignature(filePath string) ([]byte, error) {
 	return signature, nil
 }
 
-func (g *GroupMember) UploadFile(operator *Operators, groupOwner *GroupOwner, groupID string, filePath string) (string, error) {
+func (g *GroupMember) UploadFile(operator *Operators, groupOwner *GroupOwner, groupID string, filePath string) (string, string, error) {
 	if isMember, err := g.IsMemberOf(operator.proxy, groupID); !isMember {
-		return "", err
+		return "", "", err
 	}
 
 	signature, err := utils.SignSignature(filePath, g.privateKey)
 	if err != nil {
-		fmt.Println("here")
-		return "", err
+		return "", "", err
 	}
 
 	uploadReq := UploadRequest{
@@ -68,13 +66,13 @@ func (g *GroupMember) UploadFile(operator *Operators, groupOwner *GroupOwner, gr
 
 	err = operator.proxy.VerifySignature(signature, uploadReq)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	//a good implementation should have VerifySignature wrapped inside UploadFileToIPFS
 	handle, checksum, err := operator.proxy.UploadFileToIPFS(operator.sh, uploadReq)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	transactionData := Data{
@@ -102,11 +100,11 @@ func (g *GroupMember) UploadFile(operator *Operators, groupOwner *GroupOwner, gr
 		}
 	}
 	if groupIdx == -1 {
-		return "", errors.New("unexpected error while finding group to insert the uploaded file metadata into")
+		return "", "", errors.New("unexpected error while finding group to insert the uploaded file metadata into")
 	}
 
 	groupOwner.groupsOwned[groupIdx].files = append(groupOwner.groupsOwned[groupIdx].files, file)
-	return transactionHash, nil
+	return transactionHash, handle, nil
 }
 
 func (g GroupMember) ReadFile(operator *Operators, groupID string, handle string) error {
@@ -140,7 +138,6 @@ func (g GroupMember) DownloadFile(operator *Operators, groupID string, transacti
 	if err != nil {
 		return "", "", err
 	}
-
 
 	decryptedGroupPrivateKey, err := utils.DecryptKey(encryptedGroupPrivateKey, g.privateKey)
 	if err != nil {
