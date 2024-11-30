@@ -4,6 +4,7 @@ import (
 	"blockchain-fileshare/entities"
 	"blockchain-fileshare/ipfs"
 	"fmt"
+	"syscall"
 )
 
 func main() {
@@ -60,8 +61,39 @@ func main() {
 
 	groupOwner.AddNewMemberObj(proxy, groupUuid, member1)
 
+	oldFiles, err := groupOwner.ListFiles(groupUuid)
+	
+
+
 	// err = groupOwner.DownloadFile(&operator, groupUuid, transID)
 	// fmt.Println("Error", err)
-	err = member1.DownloadFile(&operator, groupUuid, transID)
-	fmt.Println("Error", err)
+	downloadedFilePath, err := member1.DownloadFile(&operator, groupUuid, transID)
+	fmt.Println("Downloaded FilePath", downloadedFilePath)
+
+	err = groupOwner.RemoveMemberObj(&operator, groupUuid, member1)
+	if err != nil {
+		fmt.Println("Err", err.Error())
+		syscall.Exit(1)
+	}
+
+	downloadedFilePath, err = member1.DownloadFile(&operator, groupUuid, transID)
+	if err != nil {
+		fmt.Println("Member can't download", err.Error())
+	
+	}
+
+	fmt.Println("Old files", oldFiles)
+	newFiles, err := groupOwner.ListFiles(groupUuid)
+	if err != nil {
+		fmt.Println()
+	}
+
+	fmt.Println("New Files", newFiles)
+	path, err := groupOwner.DownloadFile(&operator, groupUuid, transID)
+	if err != nil {
+		fmt.Println("SOMETHING IS WRONG")
+		syscall.Exit(1)
+	}
+	fmt.Println("Downloaded FilePath", path)
+
 }
