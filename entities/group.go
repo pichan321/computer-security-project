@@ -37,8 +37,8 @@ type File struct {
 	fileExtension string
 	fileOwner     Member
 	FileName      string //this is probably what the users will ever see on the interface
-	handle        string //this is not actually, necessary for the system to work, but it is required for testing the security later
-	transactionID string
+	Handle        string //this is not actually, necessary for the system to work, but it is required for testing the security later
+	TransactionID string
 }
 
 type Group struct {
@@ -141,12 +141,12 @@ func (proxy *IPFSProxy) ChangeKeyAndSecureFiles(operator *Operators, groupOwner 
 	oldFiles := groupMetadata.files
 	newFilePaths := []string{}
 	for _, file := range groupMetadata.files {
-		decryptedFilePath, _, err := groupOwner.DownloadFile(operator, groupID, file.transactionID) //verifying checksum is optional, we already know that all the files (are not tampered)/(have not been tampered)
+		decryptedFilePath, _, err := groupOwner.DownloadFile(operator, groupID, file.TransactionID) //verifying checksum is optional, we already know that all the files (are not tampered)/(have not been tampered)
 		if err != nil {
 			continue
 		}
 		newFilePaths = append(newFilePaths, decryptedFilePath)
-		err = ipfs.DeleteFileFromIPFS(operator.sh, file.handle)
+		err = ipfs.DeleteFileFromIPFS(operator.sh, file.Handle)
 		if err != nil {
 			continue
 		}

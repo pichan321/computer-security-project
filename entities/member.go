@@ -88,8 +88,8 @@ func (g *GroupMember) UploadFile(operator *Operators, groupOwner *GroupOwner, gr
 		fileExtension: filepath.Ext(filePath),
 		fileOwner:     g,
 		FileName:      filepath.Base(filePath),
-		handle:        handle,
-		transactionID: transactionHash,
+		Handle:        handle,
+		TransactionID: transactionHash,
 	}
 
 	groupIdx := -1
