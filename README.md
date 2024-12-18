@@ -5,9 +5,8 @@
   - Please download the right Go according to your operating system
 2. Docker: [Download Docker](https://www.docker.com/products/docker-desktop/)
   - Please download the right Docker according to your operating system
-3. IPFS:
-  - Once you have Docker installed, please have it running as a daemon
-  - Install IPFS via Docker: [](https://docs.ipfs.tech/install/run-ipfs-inside-docker/#set-up)
+3. IPFS: [Download and install IPFS via Docker](https://docs.ipfs.tech/install/run-ipfs-inside-docker/#set-up)
+  - Once you have IPFS installed as an image in Docker, please convert it into a running container, then proceed to the next step
 
 ## How to run
 1. Clone the repository
