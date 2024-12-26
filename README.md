@@ -9,7 +9,7 @@
   - Once you have IPFS installed as an image in Docker, please convert it into a running container, then proceed to the next step
   ```
   docker pull ipfs/kubo
-  
+  docker run -d --name ipfs -p 4001:4001 -p 127.0.0.1:8080:8080 -p 127.0.0.1:5001:5001 ipfs/kubo
 ```
 
 ## How to run
