@@ -7,6 +7,10 @@
   - Please download the right Docker according to your operating system
 3. IPFS: [Download and install IPFS via Docker](https://docs.ipfs.tech/install/run-ipfs-inside-docker/#set-up)
   - Once you have IPFS installed as an image in Docker, please convert it into a running container, then proceed to the next step
+  ```
+  docker pull ipfs/kubo
+  
+```
 
 ## How to run
 1. Clone the repository
