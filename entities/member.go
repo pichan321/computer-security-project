@@ -44,6 +44,7 @@ func (g GroupMember) SignSignature(filePath string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	
 	return signature, nil
 }
 

@@ -109,7 +109,7 @@ func TestRevokeAndSecureFiles(t *testing.T) {
 		assert.Nil(t, err)
 
 		decryptedFilePath, _, err = groupOwner.DownloadFile(&operator, groupOneUuid, files[i].TransactionID)
-		assert.Nil(t, err, "crypto/rsa: decryption error")
+		assert.Nil(t, err)
 
 		os.Remove(decryptedFilePath)
 
